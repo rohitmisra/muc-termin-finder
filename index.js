@@ -116,9 +116,10 @@ var findNextAppointment = function (jsonAppoints) {
     for (var dateTag in jsonAppoints[loc].appoints) {
       for (var slot in jsonAppoints[loc].appoints[dateTag]) {
         if (!(dateTag in availAppointsInLoc)) {
-          availAppointsInLoc[dateTag] = new Array();
+          var formattedDate = new Date(dateTag).toDateString();
+          availAppointsInLoc[formattedDate] = new Array();
         }
-        availAppointsInLoc[dateTag].push(new Date(jsonAppoints[loc].appoints[dateTag][slot]).toDateString());
+        availAppointsInLoc[formattedDate].push(jsonAppoints[loc].appoints[dateTag][slot]);
       }
     }
     availAppoints[jsonAppoints[loc].caption] = availAppointsInLoc;
