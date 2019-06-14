@@ -84,12 +84,12 @@ req.post(sessionOptionsCentral, function () {
   req.post(terminOptionsCentral, function (error, response, body) {
     if (error) throw new Error(error);
     var jsonAppoints = parseResponseBodyCentral(body);
-    findNextAppointment(jsonAppoints);
+    findAppointments(jsonAppoints);
     req.post(sessionOptionsOthers, function (error, response, body) {
       req.post(terminOptionsOthers, function (error, response, body) {
         if (error) throw new Error(error);
         var jsonAppoints = parseResponseBodyOthers(body);
-        findNextAppointment(jsonAppoints);
+        findAppointments(jsonAppoints);
       });
     });
   });
@@ -109,20 +109,39 @@ var parseResponseBodyOthers = function (body) {
   return JSON.parse(obj[0].substring(16, obj[0].length - 2))
 }
 
-var findNextAppointment = function (jsonAppoints) {
+var findAppointments = function (jsonAppoints) {
   var availAppoints = {};
   for (var loc in jsonAppoints) {
     var availAppointsInLoc = {};
     for (var dateTag in jsonAppoints[loc].appoints) {
       for (var slot in jsonAppoints[loc].appoints[dateTag]) {
-        if (!(dateTag in availAppointsInLoc)) {
-          var formattedDate = new Date(dateTag).toDateString();
-          availAppointsInLoc[formattedDate] = new Array();
+        var dateLabel = new Date(dateTag).toDateString();
+        if (!(dateLabel in availAppointsInLoc)) {
+          availAppointsInLoc[dateLabel] = new Array();
         }
-        availAppointsInLoc[formattedDate].push(jsonAppoints[loc].appoints[dateTag][slot]);
+        availAppointsInLoc[dateLabel].push(jsonAppoints[loc].appoints[dateTag][slot]);
       }
     }
     availAppoints[jsonAppoints[loc].caption] = availAppointsInLoc;
   }
-  console.log(JSON.stringify(availAppoints, null, 3));
+  //console.log(JSON.stringify(availAppoints, null, 3));
+  prettyPrintAppointments(availAppoints);
 }
+
+var prettyPrintAppointments = function(availAppoints){
+  var printString = "";
+  for(var loc in availAppoints){
+    printString += loc + ": \n\n";
+    for(var dateLabel in availAppoints[loc]){
+      var timesArr = [];
+      for(var timeLabel in availAppoints[loc][dateLabel]){
+        timesArr.push(availAppoints[loc][dateLabel][timeLabel]);
+      }
+      if(timesArr.length > 0){
+        printString += ' ' + dateLabel + ': \n  ' + timesArr.join(', ') + '\n\n';
+      }
+    }
+    printString += '\n\n';
+  }
+  console.log(printString);
+};
