@@ -1,0 +1,11 @@
+services:
+  bot:
+    build: .
+    container_name: muc-termin-bot
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      TZ: Europe/Berlin
+      STATE_DIR: /app/data
+    volumes:
+      - ./data:/app/data
