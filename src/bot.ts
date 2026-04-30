@@ -18,6 +18,24 @@ let serviceName = "Verpflichtungserklärung abgeben";
 
 const isMe = (id: number) => id === config.TELEGRAM_CHAT_ID;
 
+const stats = {
+  startedAt: new Date(),
+  totalPolls: 0,
+  failedPolls: 0,
+  lastPollAt: null as Date | null,
+  lastSuccessAt: null as Date | null,
+  lastError: null as string | null,
+  slotsFoundAllTime: 0,
+};
+
+function ago(d: Date | null): string {
+  if (!d) return "never";
+  const s = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (s < 60) return `${s}s ago`;
+  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  return `${Math.floor(s / 3600)}h ${Math.floor((s % 3600) / 60)}m ago`;
+}
+
 // ── alert builder ─────────────────────────────────────────────────────────────
 
 type KeyboardRow = Array<{ text: string; callback_data: string }>;
@@ -70,10 +88,28 @@ bot.command("start", async (ctx) => {
 
 bot.command("status", async (ctx) => {
   if (!isMe(ctx.chat.id)) return;
+  const upSec = Math.floor((Date.now() - stats.startedAt.getTime()) / 1000);
+  const upStr = upSec < 3600
+    ? `${Math.floor(upSec / 60)}m ${upSec % 60}s`
+    : `${Math.floor(upSec / 3600)}h ${Math.floor((upSec % 3600) / 60)}m`;
+  const health = stats.lastError && stats.lastSuccessAt === null ? "🔴" :
+    stats.failedPolls > 0 && stats.lastError ? "🟡" : "🟢";
   await ctx.reply(
-    `Slots known   : ${state.previousSlotCount}\n` +
-      `In flight     : ${state.inFlight.size}\n` +
-      `Muted until   : ${state.muteUntilStr ?? "—"}`,
+    `${health} *muc-termin-finder*\n` +
+    `\n*Polling*\n` +
+    `  Interval    : every ${config.POLL_SECONDS}s\n` +
+    `  Last poll   : ${ago(stats.lastPollAt)}\n` +
+    `  Last success: ${ago(stats.lastSuccessAt)}\n` +
+    `  Total       : ${stats.totalPolls} (${stats.failedPolls} failed)\n` +
+    (stats.lastError ? `  Last error  : \`${stats.lastError.slice(0, 80)}\`\n` : "") +
+    `\n*Slots*\n` +
+    `  Currently   : ${state.previousSlotCount}\n` +
+    `  Found total : ${stats.slotsFoundAllTime}\n` +
+    `  In flight   : ${state.inFlight.size}\n` +
+    `\n*Bot*\n` +
+    `  Uptime      : ${upStr}\n` +
+    `  Muted until : ${state.muteUntilStr ?? "—"}`,
+    { parse_mode: "Markdown" },
   );
 });
 
@@ -175,15 +211,22 @@ async function fetchCurrentSlots(): Promise<Slot[]> {
 }
 
 async function pollOnce(): Promise<void> {
+  stats.totalPolls++;
+  stats.lastPollAt = new Date();
   let current: Slot[];
   try {
     current = await fetchCurrentSlots();
+    stats.lastSuccessAt = new Date();
+    stats.lastError = null;
   } catch (err) {
-    console.error("[watcher] poll failed:", err instanceof Error ? err.message : err);
+    stats.failedPolls++;
+    stats.lastError = err instanceof Error ? err.message : String(err);
+    console.error("[watcher] poll failed:", stats.lastError);
     return;
   }
 
   const newSlots = state.updateSlots(current);
+  stats.slotsFoundAllTime += newSlots.length;
   console.log(`[watcher] ${current.length} slots, ${newSlots.length} new`);
 
   if (state.isMuted()) return;
